@@ -21,13 +21,16 @@
       </div>
 
 <!--        Go to checkout button -->
-      <form class="checkout-form" action="{%  url 'create-checkout-session' %}" method="POST">
-          {% csrf_token %}
+      <form method="post" action="{%  url 'create-checkout-session' %}">
+    {% csrf_token %}
+    <select name="price_lookup_key">
+        <option  value="standard_monthly" >standard_monthly</option>
+        <option value="apple_product">Apple product</option>
+        
+    </select>
+    <button type="submit">Subscribe</button>
+</form>
 
-        <!-- Add a hidden field with the lookup_key of your stripe Price -->
-        <input type="hidden" name="price_lookup_key" value="standard_monthly" />
-        <button id="checkout-and-portal-button" type="submit">Checkout</button>
-      </form>
     </section>
   </body>
 </html>
