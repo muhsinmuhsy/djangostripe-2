@@ -9,15 +9,19 @@ from django.contrib.auth import login
 from django.contrib.auth.models import User
 from . import models
 
+import logging
 
-DOMAIN = "http://localhost:8000"  # Move this to your settings file or environment variable for production.
+logger = logging.getLogger(__name__)
+
+
+DOMAIN = "http://localhost:8000" 
 stripe.api_key = os.environ['STRIPE_SECRET_KEY']
 
 
 def subscribe(request) -> HttpResponse:
     # We login a sample user for the demo.
     user, created = User.objects.get_or_create(
-        username='AlexG', email="alexg@example.com"
+        username='Muhsy', email="muhsy@example.com"
     )
     if created:
         user.set_password('password')
@@ -90,28 +94,48 @@ def direct_to_customer_portal(request) -> HttpResponse:
     return redirect(portal_session.url, code=303)
 
 
+
+from django.conf import settings
+
+
 @csrf_exempt
 def collect_stripe_webhook(request) -> JsonResponse:
     """
     Stripe sends webhook events to this endpoint.
     We verify the webhook signature and updates the database record.
     """
-    webhook_secret = os.environ.get('STRIPE_WEBHOOK_SECRET')
-    signature = request.META["HTTP_STRIPE_SIGNATURE"]
+    webhook_secret = settings.STRIPE_WEBHOOK_SECRET
+    signature = request.META.get("HTTP_STRIPE_SIGNATURE")
     payload = request.body
+
+    if not webhook_secret:
+        logger.error("Stripe webhook secret not set.")
+        return JsonResponse({'status': 'error', 'message': 'Webhook secret not set'}, status=500)
+
+    if not signature:
+        logger.error("Stripe signature missing in the request headers.")
+        return JsonResponse({'status': 'error', 'message': 'Signature missing'}, status=400)
 
     try:
         event = stripe.Webhook.construct_event(
             payload=payload, sig_header=signature, secret=webhook_secret
         )
-    except ValueError as e:  # Invalid payload.
-        raise ValueError(e)
+    except ValueError as e:  # Invalid payload
+        logger.error(f"Invalid payload: {e}")
+        return JsonResponse({'status': 'error', 'message': 'Invalid payload'}, status=400)
     except stripe.error.SignatureVerificationError as e:  # Invalid signature
-        raise stripe.error.SignatureVerificationError(e)
+        logger.error(f"Invalid signature: {e}")
+        return JsonResponse({'status': 'error', 'message': 'Invalid signature'}, status=400)
 
-    _update_record(event)
+    # Update record based on the event type
+    try:
+        _update_record(event)
+    except Exception as e:
+        logger.error(f"Error updating record: {e}")
+        return JsonResponse({'status': 'error', 'message': 'Error updating record'}, status=500)
 
     return JsonResponse({'status': 'success'})
+
 
 
 def _update_record(webhook_event) -> None:
